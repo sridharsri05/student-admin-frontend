@@ -67,7 +67,7 @@ axiosInstance.interceptors.response.use(
             isRefreshing = true;
 
             try {
-                const refreshResponse = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+                const refreshResponse = await axios.get(`${API_BASE_URL}/auth/refresh`, { withCredentials: true });
 
                 const newToken = refreshResponse.data.token;
                 localStorage.setItem('authToken', newToken);

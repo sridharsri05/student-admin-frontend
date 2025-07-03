@@ -60,6 +60,8 @@
 // };
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import axiosInstance from "@/config/axiosInstance";
+import * as jwt_decode from "jwt-decode";
 
 interface User {
   id: string;
@@ -95,21 +97,53 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const token = localStorage.getItem("authToken");
-    const userData = localStorage.getItem("userData");
-
-    if (token && userData) {
-      try {
-        setUser(JSON.parse(userData));
-      } catch (error) {
-        console.error("Error parsing user data:", error);
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("userData");
-      }
+  // Helper to check if token is expired
+  function isTokenExpired(token: string | null) {
+    if (!token) return true;
+    try {
+      const { exp } = (jwt_decode as any).default(token) as { exp: number };
+      return Date.now() >= exp * 1000;
+    } catch {
+      return true;
     }
+  }
 
-    setLoading(false);
+  // Try to refresh token if expired on app load
+  useEffect(() => {
+    async function ensureFreshToken() {
+      const token = localStorage.getItem("authToken");
+      const userData = localStorage.getItem("userData");
+
+      if (token && isTokenExpired(token)) {
+        try {
+          const refreshResponse = await axiosInstance.post("/auth/refresh", {}, { withCredentials: true });
+          const newToken = refreshResponse.data.token;
+          localStorage.setItem("authToken", newToken);
+          if (userData) {
+            setUser(JSON.parse(userData));
+          }
+        } catch (err) {
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("userData");
+          setUser(null);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (token && userData) {
+        try {
+          setUser(JSON.parse(userData));
+        } catch (error) {
+          console.error("Error parsing user data:", error);
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("userData");
+        }
+      }
+      setLoading(false);
+    }
+    ensureFreshToken();
   }, []);
 
   const login = (userData: User, token: string) => {

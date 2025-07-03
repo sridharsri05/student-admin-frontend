@@ -1,19 +1,17 @@
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
 
 export const ProtectedRoute = ({ children, requiredRole, allowedRoles }) => {
   const { isAuthenticated, loading, role } = useAuth();
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="glass border-white/10">
-          <CardContent className="p-8">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading...</p>
-            </div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="glass border-white/10 shadow-xl">
+          <CardContent className="p-10 flex flex-col items-center">
+            <Loader2 className="w-12 h-12 text-primary animate-spin" />
           </CardContent>
         </Card>
       </div>

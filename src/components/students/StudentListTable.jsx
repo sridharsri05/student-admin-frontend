@@ -1,25 +1,14 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Edit, Trash2, Eye, Search } from "lucide-react";
+import { Edit, Trash2, Eye } from "lucide-react";
 import { useStudents } from "@/hooks/useStudents";
+import { DialogDescription } from "@/components/ui/dialog";
 
-export const StudentListTable = ({ searchTerm = "" }) => {
-  const { students, loading, deleteStudent } = useStudents();
-  const [localSearch, setLocalSearch] = useState("");
-
-  const filteredStudents = students.filter(student => {
-    const searchStr = (searchTerm || localSearch).toLowerCase();
-    return (
-      student.name?.toLowerCase().includes(searchStr) ||
-      student.email?.toLowerCase().includes(searchStr) ||
-      student.phone?.toLowerCase().includes(searchStr)
-    );
-  });
+export const StudentListTable = ({ searchTerm = "", filteredStudents = [] }) => {
+  const { deleteStudent } = useStudents();
 
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this student?")) {
@@ -31,31 +20,10 @@ export const StudentListTable = ({ searchTerm = "" }) => {
     }
   };
 
-  if (loading) {
-    return (
-      <Card className="glass border-white/10">
-        <CardContent className="p-6">
-          <div className="text-center">Loading students...</div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <Card className="glass border-white/10">
       <CardHeader>
         <CardTitle className="text-gradient">Student List</CardTitle>
-        {!searchTerm && (
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search students..."
-              value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
-              className="pl-10 glass border-white/20"
-            />
-          </div>
-        )}
       </CardHeader>
       <CardContent>
         {filteredStudents.length === 0 ? (
@@ -68,47 +36,53 @@ export const StudentListTable = ({ searchTerm = "" }) => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Batch</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="hidden md:table-cell">Email</TableHead>
+                  <TableHead className="hidden lg:table-cell">Phone</TableHead>
+                  <TableHead className="hidden sm:table-cell">Batch</TableHead>
+                  <TableHead className="hidden sm:table-cell">Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredStudents.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell className="font-medium">{student.name}</TableCell>
-                    <TableCell>{student.email}</TableCell>
-                    <TableCell>{student.phone}</TableCell>
-                    <TableCell>
-                      {student.batches ? (
-                        <Badge variant="outline">
-                          {student.batches.name}
+                  <TableRow key={student._id}>
+                    <TableCell className="font-medium">
+                      <div>
+                        <div className="font-semibold">{student.name}</div>
+                        <div className="text-xs text-muted-foreground md:hidden">{student.email}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">{student.email}</TableCell>
+                    <TableCell className="hidden lg:table-cell">{student.phone}</TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      {student.batchPreference ? (
+                        <Badge variant="outline" className="text-xs">
+                          {student.batchPreference.name}
                         </Badge>
                       ) : (
-                        <Badge variant="secondary">No Batch</Badge>
+                        <Badge variant="secondary" className="text-xs">No Batch</Badge>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <Badge className="bg-neon-green/20 text-neon-green">
-                        Active
+                    <TableCell className="hidden sm:table-cell">
+                      <Badge className="bg-neon-green/20 text-neon-green text-xs">
+                        {student.status || "Active"}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
-                          <Eye className="w-4 h-4" />
+                      <div className="flex gap-1 sm:gap-2">
+                        <Button variant="outline" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3">
+                          <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
                         </Button>
-                        <Button variant="outline" size="sm">
-                          <Edit className="w-4 h-4" />
+                        <Button variant="outline" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3">
+                          <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
                         </Button>
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => handleDelete(student.id)}
+                          onClick={() => handleDelete(student._id)}
+                          className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                         </Button>
                       </div>
                     </TableCell>

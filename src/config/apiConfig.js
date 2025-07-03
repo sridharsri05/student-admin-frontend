@@ -17,7 +17,6 @@ export const apiConfig = {
         courses: "/courses",
         batches: "/batches",
         nationalities: "/nationalities",
-        feeMasters: "/fee-masters",
         paymentModes: "/payment-modes",
         coursePackages: "/course-packages",
         batchPreferences: "/batch-preferences",
