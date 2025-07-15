@@ -1,17 +1,9 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle 
-} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -19,34 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  User,
-  Mail,
-  Phone,
-  MapPin,
-  Calendar,
-  GraduationCap,
-  Building,
-  BookOpen,
-  Clock,
-  Globe,
-  Save,
-  X,
-  Loader2
-} from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon, DollarSign } from "lucide-react";
+import { format } from "date-fns";
 import { useLookups } from "@/hooks/useLookups";
-import { toast } from "@/hooks/use-toast";
-
-interface LookupItem {
-  _id: string;
-  name: string;
-}
 
 interface Student {
   _id: string;
@@ -65,69 +35,101 @@ interface Student {
     email: string;
     relationship: string;
   };
-  status: string;
-  university: LookupItem;
-  course: LookupItem;
-  coursePackage: LookupItem;
+  status: 'active' | 'inactive' | 'pending' | 'graduated' | 'dropped';
+  university: any;
+  course: any;
+  coursePackage: any;
   semester: string;
-  batchPreference: LookupItem;
-  courseMode: LookupItem;
-  nationality: LookupItem;
-  feeStatus: string;
+  batchPreference: any;
+  courseMode: any;
+  nationality: any;
+  feeStatus: 'pending' | 'partial' | 'complete' | 'overdue';
+  totalFees: number;
+  paidAmount: number;
+  remainingAmount: number;
+  nextPaymentDue?: string;
   photo: string | null;
   joinDate: string;
-  createdAt: string;
   rollNumber: string;
 }
 
 interface EditStudentModalProps {
   student: Student;
-  onSave: (data: any) => Promise<void>;
+  onSave: (updatedData: any) => Promise<void>;
   onClose: () => void;
 }
 
 const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) => {
-  const [loading, setLoading] = useState(false);
   const { lookups } = useLookups();
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("personal");
+  
+  // Split the name into first and last name
+  const nameParts = student.name.split(' ');
+  const firstName = nameParts[0] || '';
+  const lastName = nameParts.slice(1).join(' ') || '';
 
   const [formData, setFormData] = useState({
-    name: student.name,
-    email: student.email,
-    phone: student.phone,
-    dob: student.dob,
-    gender: student.gender,
-    address: student.address,
-    city: student.city,
-    state: student.state,
-    pincode: student.pincode,
-    parentGuardian: {
-      name: student.parentGuardian?.name || "",
-      phone: student.parentGuardian?.phone || "",
-      email: student.parentGuardian?.email || "",
-      relationship: student.parentGuardian?.relationship || ""
-    },
-    status: student.status,
-    university: student.university._id,
-    course: student.course._id,
-    coursePackage: student.coursePackage._id,
-    semester: student.semester,
-    batchPreference: student.batchPreference._id,
-    courseMode: student.courseMode._id,
-    nationality: student.nationality._id,
-    feeStatus: student.feeStatus
+    // Personal Information
+    firstName,
+    lastName,
+    email: student.email || "",
+    phone: student.phone || "",
+    dateOfBirth: student.dob || "",
+    gender: student.gender || "",
+    address: student.address || "",
+    city: student.city || "",
+    state: student.state || "",
+    pincode: student.pincode || "",
+    status: student.status || "",
+    nationality: student.nationality?._id || "",
+
+    // Parent/Guardian Information
+    parentName: student.parentGuardian?.name || "",
+    parentPhone: student.parentGuardian?.phone || "",
+    parentEmail: student.parentGuardian?.email || "",
+    relationship: student.parentGuardian?.relationship || "",
+
+    // Academic Information
+    university: student.university?._id || "",
+    course: student.course?._id || "",
+    semester: student.semester || "",
+    rollNumber: student.rollNumber || "",
+    coursePackage: student.coursePackage?._id || "",
+    batchPreference: student.batchPreference?._id || "",
+    courseMode: student.courseMode?._id || "",
+    
+    // Fee Information
+    totalFees: student.totalFees?.toString() || "",
+    paidAmount: student.paidAmount?.toString() || "",
+    remainingAmount: student.remainingAmount?.toString() || "",
+    feeStatus: student.feeStatus || "",
+    nextPaymentDue: student.nextPaymentDue || "",
   });
 
-
-
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleParentChange = (field: string, value: string) => {
+    // Phone validation: only allow digits and max 10 digits
+    if (field === "phone" || field === "parentPhone") {
+      // Remove non-digits
+      value = value.replace(/\D/g, "");
+      if (value.length > 10) value = value.slice(0, 10);
+    }
+    
+    // Calculate remaining amount when totalFees or paidAmount changes
+    if (field === "totalFees" || field === "paidAmount") {
+      const totalFees = field === "totalFees" ? parseFloat(value) || 0 : parseFloat(formData.totalFees) || 0;
+      const paidAmount = field === "paidAmount" ? parseFloat(value) || 0 : parseFloat(formData.paidAmount) || 0;
+      const remainingAmount = Math.max(0, totalFees - paidAmount).toString();
+      
     setFormData(prev => ({
       ...prev,
-      parentGuardian: { ...prev.parentGuardian, [field]: value }
+        [field]: value,
+        remainingAmount: remainingAmount
     }));
+      return;
+    }
+    
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -135,18 +137,24 @@ const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) =
     setLoading(true);
 
     try {
+      // Prepare payload matching backend schema
       const payload = {
-        name: formData.name,
+        name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email,
         phone: formData.phone,
-        dob: formData.dob,
+        dob: formData.dateOfBirth,
         gender: formData.gender,
         address: formData.address,
         city: formData.city,
         state: formData.state,
         pincode: formData.pincode,
-        parentGuardian: formData.parentGuardian,
         status: formData.status,
+        parentGuardian: {
+          name: formData.parentName,
+          phone: formData.parentPhone,
+          email: formData.parentEmail,
+          relationship: formData.relationship,
+        },
         university: formData.university,
         course: formData.course,
         coursePackage: formData.coursePackage,
@@ -154,107 +162,77 @@ const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) =
         batchPreference: formData.batchPreference,
         courseMode: formData.courseMode,
         nationality: formData.nationality,
-        feeStatus: formData.feeStatus
+        feeStatus: formData.feeStatus,
+        totalFees: parseFloat(formData.totalFees) || 0,
+        paidAmount: parseFloat(formData.paidAmount) || 0,
+        nextPaymentDue: formData.nextPaymentDue || null,
       };
 
       await onSave(payload);
-      toast({
-        title: "Student Updated Successfully!",
-        description: "The student information has been updated.",
-      });
-    } catch (error) {
-      toast({
-        title: "Update Failed",
-        description: "There was an error updating the student. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto glass border-white/20">
+    <Dialog open={!!student} onOpenChange={() => onClose()}>
+      <DialogContent className="glass border-white/10 max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-gradient">
-            <User className="w-5 h-5" />
-            Edit Student
-          </DialogTitle>
+          <DialogTitle className="text-gradient">Edit Student</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Student Info Header */}
-          <div className="flex items-center gap-4 p-4 bg-muted/20 rounded-lg">
-            <Avatar className="w-16 h-16 shadow-lg">
-              <AvatarImage src={student.photo || undefined} />
-              <AvatarFallback className="bg-gradient-to-br from-neon-cyan to-neon-purple text-white text-lg font-semibold">
-                {student.name.split(' ').map(n => n[0]).join('')}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h3 className="text-lg font-semibold">{student.name}</h3>
-              <p className="text-sm text-muted-foreground">{student.rollNumber}</p>
-              <div className="flex gap-2 mt-2">
-                <Badge variant="outline">{student.status}</Badge>
-                <Badge variant="outline">{student.feeStatus}</Badge>
-              </div>
-            </div>
-          </div>
-
-          <Tabs defaultValue="personal" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 glass border-white/20">
-              <TabsTrigger value="personal" className="flex items-center gap-2">
-                <User className="w-4 h-4" />
+        <form onSubmit={handleSubmit}>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="glass border-white/20 w-full grid grid-cols-4">
+              <TabsTrigger value="personal" className="data-[state=active]:bg-primary/20">
                 Personal
               </TabsTrigger>
-              <TabsTrigger value="academic" className="flex items-center gap-2">
-                <GraduationCap className="w-4 h-4" />
+              <TabsTrigger value="academic" className="data-[state=active]:bg-primary/20">
                 Academic
               </TabsTrigger>
-              <TabsTrigger value="parent" className="flex items-center gap-2">
-                <User className="w-4 h-4" />
-                Parent
+              <TabsTrigger value="guardian" className="data-[state=active]:bg-primary/20">
+                Guardian
               </TabsTrigger>
-              <TabsTrigger value="contact" className="flex items-center gap-2">
-                <Phone className="w-4 h-4" />
-                Contact
+              <TabsTrigger value="fees" className="data-[state=active]:bg-primary/20">
+                Fees
               </TabsTrigger>
             </TabsList>
 
             {/* Personal Information */}
-            <TabsContent value="personal" className="space-y-4">
-              <Card className="glass border-white/10">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-neon-cyan">
-                    <User className="w-5 h-5" />
-                    Personal Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <TabsContent value="personal" className="space-y-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input
+                    id="firstName"
+                    value={formData.firstName}
+                    onChange={(e) => handleInputChange("firstName", e.target.value)}
+                    className="glass border-white/20"
+                    required
+                  />
+                </div>
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name *</Label>
+                  <Label htmlFor="lastName">Last Name</Label>
                     <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange("name", e.target.value)}
+                    id="lastName"
+                    value={formData.lastName}
+                    onChange={(e) => handleInputChange("lastName", e.target.value)}
                       className="glass border-white/20"
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
+                  <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
                       type="email"
                       value={formData.email}
                       onChange={(e) => handleInputChange("email", e.target.value)}
                       className="glass border-white/20"
-                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number *</Label>
+                  <Label htmlFor="phone">Phone Number</Label>
                     <Input
                       id="phone"
                       value={formData.phone}
@@ -264,18 +242,39 @@ const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) =
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="dob">Date of Birth *</Label>
-                    <Input
-                      id="dob"
-                      type="date"
-                      value={formData.dob}
-                      onChange={(e) => handleInputChange("dob", e.target.value)}
-                      className="glass border-white/20"
-                      required
-                    />
+                  <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal glass border-white/20 ${
+                          !formData.dateOfBirth ? "text-muted-foreground" : ""
+                        }`}
+                        type="button"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                        {formData.dateOfBirth
+                          ? format(new Date(formData.dateOfBirth), "PPP")
+                          : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined}
+                        onSelect={(date) => {
+                          handleInputChange(
+                            "dateOfBirth",
+                            date ? date.toISOString().split("T")[0] : ""
+                          );
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="gender">Gender *</Label>
+                  <Label htmlFor="gender">Gender</Label>
                     <Select
                       value={formData.gender}
                       onValueChange={(value) => handleInputChange("gender", value)}
@@ -290,40 +289,69 @@ const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) =
                       </SelectContent>
                     </Select>
                   </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="address">Address</Label>
+                  <Textarea
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) => handleInputChange("address", e.target.value)}
+                    className="glass border-white/20"
+                    rows={2}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) => handleInputChange("city", e.target.value)}
+                    className="glass border-white/20"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="state">State</Label>
+                  <Input
+                    id="state"
+                    value={formData.state}
+                    onChange={(e) => handleInputChange("state", e.target.value)}
+                    className="glass border-white/20"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pincode">Pincode</Label>
+                  <Input
+                    id="pincode"
+                    value={formData.pincode}
+                    onChange={(e) => handleInputChange("pincode", e.target.value)}
+                    className="glass border-white/20"
+                  />
+                </div>
                   <div className="space-y-2">
-                    <Label htmlFor="nationality">Nationality *</Label>
+                  <Label htmlFor="status">Status</Label>
                     <Select
-                      value={formData.nationality}
-                      onValueChange={(value) => handleInputChange("nationality", value)}
+                    value={formData.status}
+                    onValueChange={(value) => handleInputChange("status", value)}
                     >
                       <SelectTrigger className="glass border-white/20">
-                        <SelectValue placeholder="Select nationality" />
+                      <SelectValue placeholder="Select status" />
                       </SelectTrigger>
                       <SelectContent className="glass bg-background border-white/20">
-                        {lookups.nationalities.map((nat: any) => (
-                          <SelectItem key={nat._id} value={nat._id}>
-                            {nat.name}
-                          </SelectItem>
-                        ))}
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="graduated">Graduated</SelectItem>
+                      <SelectItem value="dropped">Dropped</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                </CardContent>
-              </Card>
+              </div>
             </TabsContent>
 
             {/* Academic Information */}
-            <TabsContent value="academic" className="space-y-4">
-              <Card className="glass border-white/10">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-neon-green">
-                    <GraduationCap className="w-5 h-5" />
-                    Academic Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <TabsContent value="academic" className="space-y-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="university">University *</Label>
+                  <Label htmlFor="university">University/College</Label>
                     <Select
                       value={formData.university}
                       onValueChange={(value) => handleInputChange("university", value)}
@@ -332,16 +360,16 @@ const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) =
                         <SelectValue placeholder="Select university" />
                       </SelectTrigger>
                       <SelectContent className="glass bg-background border-white/20">
-                        {lookups.universities.map((uni: any) => (
+                      {lookups.universities?.map((uni) => (
                           <SelectItem key={uni._id} value={uni._id}>
-                            {uni.name}
+                          {uni?.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="course">Course *</Label>
+                  <Label htmlFor="course">Course</Label>
                     <Select
                       value={formData.course}
                       onValueChange={(value) => handleInputChange("course", value)}
@@ -350,34 +378,16 @@ const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) =
                         <SelectValue placeholder="Select course" />
                       </SelectTrigger>
                       <SelectContent className="glass bg-background border-white/20">
-                        {lookups.courses.map((course: any) => (
+                      {lookups.courses?.map((course) => (
                           <SelectItem key={course._id} value={course._id}>
-                            {course.name}
+                          {course?.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="coursePackage">Course Package *</Label>
-                    <Select
-                      value={formData.coursePackage}
-                      onValueChange={(value) => handleInputChange("coursePackage", value)}
-                    >
-                      <SelectTrigger className="glass border-white/20">
-                        <SelectValue placeholder="Select course package" />
-                      </SelectTrigger>
-                      <SelectContent className="glass bg-background border-white/20">
-                        {lookups.coursePackages.map((pkg: any) => (
-                          <SelectItem key={pkg._id} value={pkg._id}>
-                            {pkg.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="semester">Semester *</Label>
+                  <Label htmlFor="semester">Semester/Year</Label>
                     <Select
                       value={formData.semester}
                       onValueChange={(value) => handleInputChange("semester", value)}
@@ -386,9 +396,39 @@ const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) =
                         <SelectValue placeholder="Select semester" />
                       </SelectTrigger>
                       <SelectContent className="glass bg-background border-white/20">
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                          <SelectItem key={sem} value={sem.toString()}>
-                            {sem}st Semester
+                      <SelectItem value="1">1st Semester</SelectItem>
+                      <SelectItem value="2">2nd Semester</SelectItem>
+                      <SelectItem value="3">3rd Semester</SelectItem>
+                      <SelectItem value="4">4th Semester</SelectItem>
+                      <SelectItem value="5">5th Semester</SelectItem>
+                      <SelectItem value="6">6th Semester</SelectItem>
+                      <SelectItem value="7">7th Semester</SelectItem>
+                      <SelectItem value="8">8th Semester</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rollNumber">Roll Number</Label>
+                  <Input
+                    id="rollNumber"
+                    value={formData.rollNumber}
+                    className="glass border-white/20"
+                    readOnly
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="coursePackage">Course Package</Label>
+                  <Select
+                    value={formData.coursePackage}
+                    onValueChange={(value) => handleInputChange("coursePackage", value)}
+                  >
+                    <SelectTrigger className="glass border-white/20">
+                      <SelectValue placeholder="Select package" />
+                    </SelectTrigger>
+                    <SelectContent className="glass bg-background border-white/20">
+                      {lookups.coursePackages?.map((pkg) => (
+                        <SelectItem key={pkg._id} value={pkg._id}>
+                          {pkg?.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -401,67 +441,75 @@ const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) =
                       onValueChange={(value) => handleInputChange("batchPreference", value)}
                     >
                       <SelectTrigger className="glass border-white/20">
-                        <SelectValue placeholder="Select batch preference" />
+                      <SelectValue placeholder="Select batch" />
                       </SelectTrigger>
                       <SelectContent className="glass bg-background border-white/20">
-                        {lookups.batches.map((batch: any) => (
+                      {lookups.batches?.map((batch) => (
                           <SelectItem key={batch._id} value={batch._id}>
-                            {batch.name}
+                          {batch?.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="courseMode">Course Mode *</Label>
+                  <Label htmlFor="courseMode">Course Mode</Label>
                     <Select
                       value={formData.courseMode}
                       onValueChange={(value) => handleInputChange("courseMode", value)}
                     >
                       <SelectTrigger className="glass border-white/20">
-                        <SelectValue placeholder="Select course mode" />
+                      <SelectValue placeholder="Select mode" />
                       </SelectTrigger>
                       <SelectContent className="glass bg-background border-white/20">
-                        {lookups.courseModes.map((mode: any) => (
+                      {lookups.courseModes?.map((mode) => (
                           <SelectItem key={mode._id} value={mode._id}>
-                            {mode.name}
+                          {mode?.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nationality">Nationality</Label>
+                  <Select
+                    value={formData.nationality}
+                    onValueChange={(value) => handleInputChange("nationality", value)}
+                  >
+                    <SelectTrigger className="glass border-white/20">
+                      <SelectValue placeholder="Select nationality" />
+                    </SelectTrigger>
+                    <SelectContent className="glass bg-background border-white/20">
+                      {lookups.nationalities?.map((nat) => (
+                        <SelectItem key={nat._id} value={nat._id}>
+                          {nat?.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                </CardContent>
-              </Card>
+              </div>
             </TabsContent>
 
-            {/* Parent Information */}
-            <TabsContent value="parent" className="space-y-4">
-              <Card className="glass border-white/10">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-neon-purple">
-                    <User className="w-5 h-5" />
-                    Parent/Guardian Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Guardian Information */}
+            <TabsContent value="guardian" className="space-y-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="parentName">Parent/Guardian Name *</Label>
+                  <Label htmlFor="parentName">Parent/Guardian Name</Label>
                     <Input
                       id="parentName"
-                      value={formData.parentGuardian.name}
-                      onChange={(e) => handleParentChange("name", e.target.value)}
+                    value={formData.parentName}
+                    onChange={(e) => handleInputChange("parentName", e.target.value)}
                       className="glass border-white/20"
-                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="parentPhone">Parent/Guardian Phone *</Label>
+                  <Label htmlFor="parentPhone">Parent/Guardian Phone</Label>
                     <Input
                       id="parentPhone"
-                      value={formData.parentGuardian.phone}
-                      onChange={(e) => handleParentChange("phone", e.target.value)}
+                    value={formData.parentPhone}
+                    onChange={(e) => handleInputChange("parentPhone", e.target.value)}
                       className="glass border-white/20"
-                      required
                     />
                   </div>
                   <div className="space-y-2">
@@ -469,16 +517,16 @@ const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) =
                     <Input
                       id="parentEmail"
                       type="email"
-                      value={formData.parentGuardian.email}
-                      onChange={(e) => handleParentChange("email", e.target.value)}
+                    value={formData.parentEmail}
+                    onChange={(e) => handleInputChange("parentEmail", e.target.value)}
                       className="glass border-white/20"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="relationship">Relationship *</Label>
+                  <Label htmlFor="relationship">Relationship</Label>
                     <Select
-                      value={formData.parentGuardian.relationship}
-                      onValueChange={(value) => handleParentChange("relationship", value)}
+                    value={formData.relationship}
+                    onValueChange={(value) => handleInputChange("relationship", value)}
                     >
                       <SelectTrigger className="glass border-white/20">
                         <SelectValue placeholder="Select relationship" />
@@ -493,93 +541,53 @@ const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) =
                       </SelectContent>
                     </Select>
                   </div>
-                </CardContent>
-              </Card>
+              </div>
             </TabsContent>
 
-            {/* Contact Information */}
-            <TabsContent value="contact" className="space-y-4">
-              <Card className="glass border-white/10">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-neon-pink">
-                    <MapPin className="w-5 h-5" />
-                    Contact & Address Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            {/* Fee Information */}
+            <TabsContent value="fees" className="space-y-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="address">Address *</Label>
-                    <Textarea
-                      id="address"
-                      value={formData.address}
-                      onChange={(e) => handleInputChange("address", e.target.value)}
-                      className="glass border-white/20"
-                      rows={3}
-                      required
+                  <Label htmlFor="totalFees">Total Fees (₹)</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="totalFees"
+                      type="number"
+                      value={formData.totalFees}
+                      onChange={(e) => handleInputChange("totalFees", e.target.value)}
+                      className="glass border-white/20 pl-10"
                     />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="city">City *</Label>
-                      <Input
-                        id="city"
-                        value={formData.city}
-                        onChange={(e) => handleInputChange("city", e.target.value)}
-                        className="glass border-white/20"
-                        required
-                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="state">State *</Label>
+                  <Label htmlFor="paidAmount">Paid Amount (₹)</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        id="state"
-                        value={formData.state}
-                        onChange={(e) => handleInputChange("state", e.target.value)}
-                        className="glass border-white/20"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="pincode">Pincode *</Label>
-                      <Input
-                        id="pincode"
-                        value={formData.pincode}
-                        onChange={(e) => handleInputChange("pincode", e.target.value)}
-                        className="glass border-white/20"
-                        required
+                      id="paidAmount"
+                      type="number"
+                      value={formData.paidAmount}
+                      onChange={(e) => handleInputChange("paidAmount", e.target.value)}
+                      className="glass border-white/20 pl-10"
                       />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card className="glass border-white/10">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-yellow-400">
-                    <BookOpen className="w-5 h-5" />
-                    Status Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="status">Status *</Label>
-                    <Select
-                      value={formData.status}
-                      onValueChange={(value) => handleInputChange("status", value)}
-                    >
-                      <SelectTrigger className="glass border-white/20">
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent className="glass bg-background border-white/20">
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="active-pending">Active Pending</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <Label htmlFor="remainingAmount">Remaining Amount (₹)</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="remainingAmount"
+                      type="number"
+                      value={formData.remainingAmount}
+                      className="glass border-white/20 pl-10"
+                      readOnly
+                    />
+                  </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="feeStatus">Fee Status *</Label>
+                  <Label htmlFor="feeStatus">Fee Status</Label>
                     <Select
                       value={formData.feeStatus}
                       onValueChange={(value) => handleInputChange("feeStatus", value)}
@@ -588,38 +596,63 @@ const EditStudentModal = ({ student, onSave, onClose }: EditStudentModalProps) =
                         <SelectValue placeholder="Select fee status" />
                       </SelectTrigger>
                       <SelectContent className="glass bg-background border-white/20">
-                        <SelectItem value="paid">Paid</SelectItem>
                         <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="partial">Partial</SelectItem>
+                      <SelectItem value="complete">Complete</SelectItem>
                         <SelectItem value="overdue">Overdue</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                </CardContent>
-              </Card>
+                <div className="space-y-2">
+                  <Label htmlFor="nextPaymentDue">Next Payment Due Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal glass border-white/20 ${
+                          !formData.nextPaymentDue ? "text-muted-foreground" : ""
+                        }`}
+                        type="button"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                        {formData.nextPaymentDue
+                          ? format(new Date(formData.nextPaymentDue), "PPP")
+                          : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.nextPaymentDue ? new Date(formData.nextPaymentDue) : undefined}
+                        onSelect={(date) => {
+                          handleInputChange(
+                            "nextPaymentDue",
+                            date ? date.toISOString().split("T")[0] : ""
+                          );
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+          <div className="flex justify-end gap-3 mt-6">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="flex items-center gap-2"
+              className="border-white/20 hover:bg-white/10"
             >
-              <X className="w-4 h-4" />
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={loading}
-              className="bg-gradient-to-r from-neon-cyan to-neon-purple hover:from-neon-cyan/80 hover:to-neon-purple/80 flex items-center gap-2"
+              className="bg-gradient-to-r from-neon-cyan to-neon-purple hover:from-neon-cyan/80 hover:to-neon-purple/80"
             >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
               {loading ? "Saving..." : "Save Changes"}
             </Button>
           </div>

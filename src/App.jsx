@@ -13,12 +13,15 @@ import { WhatsAppIntegration } from "./pages/WhatsAppIntegration";
 import { Login } from "./pages/Login";
 import { Settings } from "./pages/Settings";
 import { Fees } from "./pages/Fees";
+// import { Discounts } from "./pages/Discounts";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { Reports } from "./pages/Reports";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { StudentDashboard } from "./pages/StudentDashboard";
+import OnlinePaymentCheckout from "./components/payments/OnlinePaymentCheckout";
+import PaymentSuccess from "./pages/PaymentSuccess";
 const queryClient = new QueryClient();
 
 const App = () => {
@@ -43,6 +46,8 @@ const App = () => {
             <BrowserRouter>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/checkout" element={<OnlinePaymentCheckout />} />
+                <Route path="/payment-success" element={<PaymentSuccess />} />
                 <Route
                   path="/student-dashboard"
                   element={
@@ -63,6 +68,7 @@ const App = () => {
                           <Route path="/students" element={<Students />} />
                           <Route path="/batches" element={<Batches />} />
                           <Route path="/fees" element={<Fees />} />
+                          {/* <Route path="/discounts" element={<Discounts />} /> */}
                           <Route path="/payment-reports" element={<PaymentReports />} />
                           <Route path="/whatsapp" element={<WhatsAppIntegration />} />
                           <Route path="/reports" element={<Reports />} />

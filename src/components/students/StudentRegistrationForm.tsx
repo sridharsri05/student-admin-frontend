@@ -19,20 +19,29 @@ import {
   User,
   GraduationCap,
   CreditCard,
-  Calendar as CalendarIcon,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLookups } from "@/hooks/useLookups";
 import { apiCall } from "../../config/api";
-import { Calendar as UiCalendar } from "@/components/ui/calendar";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { format } from "date-fns";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+
+// Format phone number to XXX-XXX-XXXX
+const formatPhoneNumber = (value: string) => {
+  if (!value) return value;
+  const phoneNumber = value.replace(/\D/g, '');
+  if (phoneNumber.length < 4) return phoneNumber;
+  if (phoneNumber.length < 7) {
+    return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3)}`;
+  }
+  return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+};
 
 export const StudentRegistrationForm = ({ onSuccess }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const { lookups } = useLookups();
+  const navigate = useNavigate();
   const [nextRollNumber, setNextRollNumber] = useState<{ rollNumber?: string }>({});
   const [formErrors, setFormErrors] = useState<{ phone?: string; parentPhone?: string }>({});
 
@@ -42,6 +51,7 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
     lastName: "",
     email: "",
     phone: "",
+    phoneFormatted: "",
     dateOfBirth: "",
     gender: "",
     address: "",
@@ -53,6 +63,7 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
     // Parent/Guardian Information
     parentName: "",
     parentPhone: "",
+    parentPhoneFormatted: "",
     parentEmail: "",
     relationship: "",
 
@@ -79,12 +90,30 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
   const handleInputChange = (field: string, value: string) => {
     // Phone validation: only allow digits and max 10 digits
     if (field === "phone" || field === "parentPhone") {
-      // Remove non-digits
-      value = value.replace(/\D/g, "");
-      if (value.length > 10) value = value.slice(0, 10);
+      const digits = value.replace(/\D/g, "");
+      if (digits.length > 10) value = digits.slice(0, 10);
+      else value = digits;
+      
+      // Store raw digits but display formatted
+      setFormData(prev => ({ 
+        ...prev, 
+        [field]: value,
+        [`${field}Formatted`]: formatPhoneNumber(value)
+      }));
+      setFormErrors((prev) => ({ ...prev, [field]: undefined }));
+      return;
     }
+    
+    // Auto-fill totalFees when selectedCourse changes
+    if (field === "selectedCourse") {
+      setFormData(prev => ({
+        ...prev,
+        selectedCourse: value,
+      }));
+      return;
+    }
+
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error on change
     setFormErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
@@ -130,22 +159,25 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
       course: formData.course,
       coursePackage: formData.selectedCourse,
       semester: formData.semester,
-      // batch: formData.batchPreference,        // You can update if separate
       batchPreference: formData.batchPreference,
       courseMode: formData.courseMode,
       nationality: formData.nationality,
+      totalFees: 0, // Adding this to satisfy the validation requirement
     };
 
     try {
-      await apiCall("/students/register", {
+      const response = await apiCall("/students/register", {
         method: "POST",
         body: JSON.stringify(payload),
       });
 
+      console.log("Student registration response:", response); // Debug to see the response structure
+
       toast({
         title: "Student Registered Successfully!",
         description:
-          "The student has been added to the system and will receive a confirmation email.",
+          "The student has been added to the system. You can now add fee details.",
+        duration: 5000,
       });
 
       // Reset form after success
@@ -154,6 +186,7 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
         lastName: "",
         email: "",
         phone: "",
+        phoneFormatted: "",
         dateOfBirth: "",
         gender: "",
         address: "",
@@ -163,28 +196,34 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
         status: "",
         parentName: "",
         parentPhone: "",
+        parentPhoneFormatted: "",
         parentEmail: "",
         relationship: "",
         university: "",
         course: "",
         semester: "",
         rollNumber: "",
-        // previousEducation: "",
         selectedCourse: "",
         batchPreference: "",
         courseMode: "",
         nationality: "",
         medicalConditions: "",
         howDidYouHear: "",
-        // emergencyName: "",
-        // emergencyPhone: "",
-        // emergencyRelation: "",
-        // medicalConditions: "",
-        // specialRequirements: "",
-        // howDidYouHear: "",
         photo: null,
       });
-      onSuccess?.(); // Call onSuccess callback to refresh data or navigate
+      
+      onSuccess?.(response.student || response); // Pass the student data to parent component for fee handling
+      
+      // Handle navigation - Check for student ID in correct response structure
+      const studentId = response.student?._id || response.student?.id || response._id || response.id;
+      
+      if (studentId) {
+        // Navigate directly to fees page with the student ID and a flag indicating this is a new registration
+        navigate(`/fees?studentId=${studentId}&isNewRegistration=true`);
+      } else {
+        console.error("Could not find student ID in response:", response);
+        navigate("/students"); // Navigate to students list if we can't find the ID
+      }
     } catch (error) {
       toast({
         title: "Registration Failed",
@@ -263,13 +302,12 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
               <Label htmlFor="phone">Phone Number *</Label>
               <Input
                 id="phone"
-                value={formData.phone}
+                value={formData.phoneFormatted || formData.phone}
                 onChange={(e) => handleInputChange("phone", e.target.value)}
                 className="glass border-white/20"
                 required
-                maxLength={10}
                 inputMode="numeric"
-                pattern="[0-9]{10}"
+                placeholder="XXX-XXX-XXXX"
               />
               {formErrors.phone && (
                 <p className="text-xs text-red-500 mt-1">{formErrors.phone}</p>
@@ -277,32 +315,18 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="dateOfBirth">Date of Birth *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={
-                      `w-full justify-start text-left font-normal glass border-white/20 ${!formData.dateOfBirth ? "text-muted-foreground" : ""}`
-                    }
-                    type="button"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-                    {formData.dateOfBirth
-                      ? format(new Date(formData.dateOfBirth), "PPP")
-                      : "Select date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <UiCalendar
-                    mode="single"
-                    selected={formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined}
-                    onSelect={(date) => {
-                      handleInputChange("dateOfBirth", date ? date.toISOString().split("T")[0] : "");
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <Input
+                id="dateOfBirth"
+                type="date"
+                value={formData.dateOfBirth}
+                onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
+                className="glass border-white/20"
+                required
+                max={new Date().toISOString().split('T')[0]} // Prevent future dates
+              />
+              <p className="text-xs text-muted-foreground">
+                Select your date of birth using the date picker
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="gender">Gender *</Label>
@@ -371,10 +395,11 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent className="glass bg-background border-white/20">
-                  <SelectItem value="active-paid">Active Paid</SelectItem>
-                  <SelectItem value="active-pending">Active Pending</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
+                  <SelectItem value="graduated">Graduated</SelectItem>
+                  <SelectItem value="dropped">Dropped</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -430,13 +455,13 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="course">Course *</Label>
+              <Label htmlFor="course">Academic Stream *</Label>
               <Select
                 value={formData.course}
                 onValueChange={(value) => handleInputChange("course", value)}
               >
                 <SelectTrigger className="glass border-white/20">
-                  <SelectValue placeholder="Select course" />
+                  <SelectValue placeholder="Select academic stream" />
                 </SelectTrigger>
                 <SelectContent className="glass bg-background border-white/20">
                   {lookups.courses?.map((course) => (
@@ -446,6 +471,7 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">Main field of study (Medical, Engineering, etc.)</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="semester">Semester/Year *</Label>
@@ -505,13 +531,12 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
               <Label htmlFor="parentPhone">Parent/Guardian Phone *</Label>
               <Input
                 id="parentPhone"
-                value={formData.parentPhone}
+                value={formData.parentPhoneFormatted || formData.parentPhone}
                 onChange={(e) => handleInputChange("parentPhone", e.target.value)}
                 className="glass border-white/20"
                 required
-                maxLength={10}
                 inputMode="numeric"
-                pattern="[0-9]{10}"
+                placeholder="XXX-XXX-XXXX"
               />
               {formErrors.parentPhone && (
                 <p className="text-xs text-red-500 mt-1">{formErrors.parentPhone}</p>
@@ -555,18 +580,18 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-neon-pink">
               <CreditCard className="w-5 h-5" />
-              Course Selection
+              Program Selection
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="selectedCourse">Select Course Package *</Label>
+              <Label htmlFor="selectedCourse">Preparation Program *</Label>
               <Select
                 value={formData.selectedCourse}
                 onValueChange={(value) => handleInputChange("selectedCourse", value)}
               >
                 <SelectTrigger className="glass border-white/20">
-                  <SelectValue placeholder="Select course package" />
+                  <SelectValue placeholder="Select preparation program" />
                 </SelectTrigger>
                 <SelectContent className="glass bg-background border-white/20">
                   {lookups.coursePackages?.map((pkg) => (
@@ -576,6 +601,7 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">Specific coaching program (JEE, NEET, Foundation, etc.)</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="batchPreference">Batch Preference</Label>
@@ -616,6 +642,7 @@ export const StudentRegistrationForm = ({ onSuccess }) => {
           </CardContent>
         </Card>
       </motion.div>
+
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.45 }}>
         <Card className="glass border-white/10">
           <CardHeader>

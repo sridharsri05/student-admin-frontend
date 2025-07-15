@@ -1,144 +1,119 @@
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
   ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+  AreaChart,
+  Area
+} from 'recharts';
+import { 
+  CreditCard, 
+  TrendingUp, 
+  DollarSign, 
+  Users 
+} from 'lucide-react';
 
-const monthlyData = [
-  { month: "Jan", revenue: 45000, payments: 120 },
-  { month: "Feb", revenue: 52000, payments: 140 },
-  { month: "Mar", revenue: 48000, payments: 135 },
-  { month: "Apr", revenue: 61000, payments: 165 },
-  { month: "May", revenue: 55000, payments: 150 },
-  { month: "Jun", revenue: 67000, payments: 180 },
-];
+export const PaymentAnalytics = ({ data = {} }) => {
+  const dailyRevenueData = useMemo(() => {
+    // Assuming data.dailyRevenue is an array of { date, amount }
+    return data.dailyRevenue?.map(item => ({
+      date: item.date,
+      amount: Number(item.amount || 0)
+    })) || [];
+  }, [data.dailyRevenue]);
 
-const paymentMethodData = [
-  { name: "Credit Card", value: 45, color: "#00D4FF" },
-  { name: "Bank Transfer", value: 30, color: "#8B5CF6" },
-  { name: "UPI", value: 20, color: "#10B981" },
-  { name: "Cash", value: 5, color: "#EC4899" },
-];
+  const totalRevenue = useMemo(() => {
+    return dailyRevenueData.reduce((sum, item) => sum + item.amount, 0);
+  }, [dailyRevenueData]);
 
-export const PaymentAnalytics = () => {
+  const averagePaymentSize = useMemo(() => {
+    return data.totalPayments > 0 
+      ? (totalRevenue / data.totalPayments).toFixed(2) 
+      : 0;
+  }, [totalRevenue, data.totalPayments]);
+
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="glass border-white/10">
-          <CardHeader>
-            <CardTitle className="text-gradient">Monthly Revenue Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
-                <XAxis dataKey="month" stroke="#ffffff80" />
-                <YAxis stroke="#ffffff80" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "rgba(0, 0, 0, 0.8)",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#00D4FF"
-                  strokeWidth={3}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+    <div className="grid grid-cols-1 gap-6">
+      {/* Revenue Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="glass border-white/10 hover:border-white/20 transition-all">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Revenue</p>
+              <p className="text-xl font-bold text-gradient">
+                ₹{totalRevenue.toLocaleString()}
+              </p>
+            </div>
+            <DollarSign className="w-8 h-8 text-neon-green opacity-70" />
           </CardContent>
         </Card>
-
-        <Card className="glass border-white/10">
-          <CardHeader>
-            <CardTitle className="text-gradient">Payment Methods Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={paymentMethodData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {paymentMethodData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+        <Card className="glass border-white/10 hover:border-white/20 transition-all">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Payments</p>
+              <p className="text-xl font-bold text-gradient">
+                {data.totalPayments || 0}
+              </p>
+            </div>
+            <CreditCard className="w-8 h-8 text-neon-cyan opacity-70" />
+          </CardContent>
+        </Card>
+        <Card className="glass border-white/10 hover:border-white/20 transition-all">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Avg Payment</p>
+              <p className="text-xl font-bold text-gradient">
+                ₹{averagePaymentSize}
+              </p>
+            </div>
+            <Users className="w-8 h-8 text-neon-purple opacity-70" />
           </CardContent>
         </Card>
       </div>
 
+      {/* Daily Revenue Trend */}
       <Card className="glass border-white/10">
         <CardHeader>
-          <CardTitle className="text-gradient">Payment Volume by Month</CardTitle>
+          <CardTitle className="text-gradient text-lg">
+            Daily Revenue Trend
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
-              <XAxis dataKey="month" stroke="#ffffff80" />
-              <YAxis stroke="#ffffff80" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "rgba(0, 0, 0, 0.8)",
-                  border: "1px solid rgba(255, 255, 255, 0.2)",
-                  borderRadius: "8px",
+        <CardContent className="h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={dailyRevenueData}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip 
+                cursor={{ fill: 'rgba(255,255,255,0.1)' }}
+                contentStyle={{ 
+                  background: 'rgba(0,0,0,0.8)', 
+                  border: 'none', 
+                  borderRadius: '8px' 
                 }}
               />
-              <Bar dataKey="payments" fill="#8B5CF6" />
-            </BarChart>
+              <Area 
+                type="monotone" 
+                dataKey="amount" 
+                stroke="#8884D8" 
+                fill="url(#colorUv)" 
+                fillOpacity={0.3}
+              />
+              <defs>
+                <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#8884D8" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#8884D8" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+            </AreaChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="glass border-white/10">
-          <CardContent className="p-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-neon-green">₹45,670</p>
-              <p className="text-sm text-muted-foreground">Average Monthly Revenue</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass border-white/10">
-          <CardContent className="p-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-neon-cyan">96.8%</p>
-              <p className="text-sm text-muted-foreground">Success Rate</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass border-white/10">
-          <CardContent className="p-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-neon-purple">₹1,847</p>
-              <p className="text-sm text-muted-foreground">Average Transaction</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 };

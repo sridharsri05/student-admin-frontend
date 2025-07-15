@@ -24,7 +24,8 @@ import {
   Building,
   BookOpen,
   Clock,
-  Globe
+  Globe,
+  DollarSign
 } from "lucide-react";
 import { useState } from "react";
 import EditStudentModal from "./EditStudentModal";
@@ -32,6 +33,13 @@ import EditStudentModal from "./EditStudentModal";
 interface LookupItem {
   _id: string;
   name: string;
+}
+
+interface BatchHistoryItem {
+  batch: LookupItem;
+  joinDate: string;
+  endDate: string;
+  status: 'active' | 'completed' | 'dropped';
 }
 
 interface Student {
@@ -51,7 +59,7 @@ interface Student {
     email: string;
     relationship: string;
   };
-  status: string;
+  status: 'active' | 'inactive' | 'pending' | 'graduated' | 'dropped';
   university: LookupItem;
   course: LookupItem;
   coursePackage: LookupItem;
@@ -59,7 +67,13 @@ interface Student {
   batchPreference: LookupItem;
   courseMode: LookupItem;
   nationality: LookupItem;
-  feeStatus: string;
+  feeStatus: 'pending' | 'partial' | 'complete' | 'overdue';
+  totalFees: number;
+  paidAmount: number;
+  remainingAmount: number;
+  nextPaymentDue?: string;
+  currentBatch?: LookupItem;
+  batchHistory?: BatchHistoryItem[];
   photo: string | null;
   joinDate: string;
   createdAt: string;
@@ -69,9 +83,10 @@ interface Student {
 interface StudentListProps {
   filteredStudents: Student[];
   viewMode: 'grid' | 'list';
+  refreshStudents?: () => void;
 }
 
-export const StudentList = ({ filteredStudents, viewMode }: StudentListProps) => {
+export const StudentList = ({ filteredStudents, viewMode, refreshStudents }: StudentListProps) => {
   const { loading, error, deleteStudent, updateStudent } = useStudents();
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
@@ -85,20 +100,30 @@ export const StudentList = ({ filteredStudents, viewMode }: StudentListProps) =>
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active": return "bg-neon-green/20 text-neon-green border-neon-green/30";
-      case "active-pending": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "pending": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
       case "inactive": return "bg-gray-500/20 text-gray-400 border-gray-500/30";
-      case "pending": return "bg-neon-pink/20 text-neon-pink border-neon-pink/30";
+      case "graduated": return "bg-neon-cyan/20 text-neon-cyan border-neon-cyan/30";
+      case "dropped": return "bg-red-500/20 text-red-400 border-red-500/30";
       default: return "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
   };
 
   const getFeeStatusColor = (status: string) => {
     switch (status) {
-      case "paid": return "bg-neon-green/20 text-neon-green border-neon-green/30";
-      case "pending": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "complete": return "bg-neon-green/20 text-neon-green border-neon-green/30";
+      case "partial": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "pending": return "bg-neon-cyan/20 text-neon-cyan border-neon-cyan/30";
       case "overdue": return "bg-red-500/20 text-red-400 border-red-500/30";
       default: return "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', { 
+      style: 'currency', 
+      currency: 'INR',
+      maximumFractionDigits: 0 
+    }).format(amount);
   };
 
   const handleEdit = (student: Student) => setEditingStudent(student);
@@ -208,7 +233,32 @@ export const StudentList = ({ filteredStudents, viewMode }: StudentListProps) =>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm text-muted-foreground">{getName(student.batchPreference)}</span>
+                    <span className="text-sm text-muted-foreground">{getName(student.currentBatch || student.batchPreference)}</span>
+                  </div>
+                </div>
+
+                {/* Fee Information */}
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <DollarSign className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm text-muted-foreground">Total Fees:</span>
+                    </div>
+                    <span className="text-sm font-medium">{formatCurrency(student.totalFees || 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <DollarSign className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm text-muted-foreground">Paid Amount:</span>
+                    </div>
+                    <span className="text-sm font-medium">{formatCurrency(student.paidAmount || 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <DollarSign className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm text-muted-foreground">Remaining:</span>
+                    </div>
+                    <span className="text-sm font-medium">{formatCurrency(student.remainingAmount || 0)}</span>
                   </div>
                 </div>
 
@@ -255,7 +305,7 @@ export const StudentList = ({ filteredStudents, viewMode }: StudentListProps) =>
                         {(student.name || "").split(' ').map(n => n[0]).join('')}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-5 gap-4">
                       <div className="min-w-0">
                         <h3 className="font-semibold text-foreground truncate">{student.name}</h3>
                         <p className="text-xs text-muted-foreground">{student.rollNumber}</p>
@@ -277,7 +327,13 @@ export const StudentList = ({ filteredStudents, viewMode }: StudentListProps) =>
                             {student.feeStatus}
                           </Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground">{getName(student.batchPreference)}</p>
+                        <p className="text-xs text-muted-foreground">{getName(student.currentBatch || student.batchPreference)}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{formatCurrency(student.paidAmount || 0)} / {formatCurrency(student.totalFees || 0)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {student.nextPaymentDue ? `Due: ${new Date(student.nextPaymentDue).toLocaleDateString()}` : 'No payment due'}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -312,6 +368,7 @@ export const StudentList = ({ filteredStudents, viewMode }: StudentListProps) =>
           onSave={async (updatedData) => {
             await updateStudent(editingStudent._id, updatedData);
             setEditingStudent(null);
+            if (typeof refreshStudents === 'function') refreshStudents();
           }}
           onClose={() => setEditingStudent(null)}
         />

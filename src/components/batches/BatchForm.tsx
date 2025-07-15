@@ -9,13 +9,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BookOpen, Users, Calendar, Clock, MapPin, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useBatches } from "@/hooks/useBatches";
+import { useLookups } from "@/hooks/useLookups";
 
-export const BatchForm = () => {
+export const BatchForm = ({ onSuccess }) => {
   const { toast } = useToast();
+  const { createBatch } = useBatches();
+  const { lookups } = useLookups();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     batchName: "",
     course: "",
+    coursePackage: "",
     instructor: "",
     maxCapacity: "",
     startDate: "",
@@ -38,6 +43,16 @@ export const BatchForm = () => {
   });
 
   const handleInputChange = (field: string, value: string) => {
+    // If coursePackage is changed, auto-fill fees if available
+    if (field === "coursePackage") {
+      const selectedPkg = lookups.coursePackages?.find(pkg => pkg._id === value);
+      setFormData(prev => ({
+        ...prev,
+        coursePackage: value,
+        fees: selectedPkg && selectedPkg.fee ? selectedPkg.fee.toString() : ""
+      }));
+      return;
+    }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -57,19 +72,32 @@ export const BatchForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      // Prepare payload
+      const payload = {
+        name: formData.batchName,
+        course: formData.course,
+        coursePackage: formData.coursePackage,
+        instructor: formData.instructor,
+        maxCapacity: parseInt(formData.maxCapacity) || 0,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        duration: formData.duration,
+        mode: formData.mode,
+        venue: formData.venue,
+        fees: parseFloat(formData.fees) || 0,
+        description: formData.description,
+        prerequisites: formData.prerequisites,
+        schedule: formData.schedule
+      };
+      await createBatch(payload);
       toast({
         title: "Batch Created Successfully!",
         description: "The new batch has been created and is ready for student enrollment.",
       });
-      
-      // Reset form
       setFormData({
         batchName: "", course: "", instructor: "", maxCapacity: "",
+        coursePackage: "",
         startDate: "", endDate: "", duration: "", mode: "", venue: "",
         fees: "", description: "", prerequisites: "",
         schedule: {
@@ -82,10 +110,11 @@ export const BatchForm = () => {
           sunday: { enabled: false, startTime: "", endTime: "" }
         }
       });
+      onSuccess?.();
     } catch (error) {
       toast({
         title: "Failed to Create Batch",
-        description: "There was an error creating the batch. Please try again.",
+        description: error?.message || "There was an error creating the batch. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -124,11 +153,26 @@ export const BatchForm = () => {
                 <SelectValue placeholder="Select course" />
               </SelectTrigger>
               <SelectContent className="glass bg-background border-white/20">
-                <SelectItem value="jee-main">JEE Main Preparation</SelectItem>
-                <SelectItem value="jee-advanced">JEE Advanced Preparation</SelectItem>
-                <SelectItem value="neet">NEET Preparation</SelectItem>
-                <SelectItem value="boards">Board Exam Preparation</SelectItem>
-                <SelectItem value="foundation">Foundation Course</SelectItem>
+                {lookups.courses?.map(course => (
+                  <SelectItem key={course._id} value={course._id}>
+                    {course.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="coursePackage">Course Package *</Label>
+            <Select value={formData.coursePackage} onValueChange={(value) => handleInputChange("coursePackage", value)}>
+              <SelectTrigger className="glass border-white/20">
+                <SelectValue placeholder="Select course package" />
+              </SelectTrigger>
+              <SelectContent className="glass bg-background border-white/20">
+                {lookups.coursePackages?.map(pkg => (
+                  <SelectItem key={pkg._id} value={pkg._id}>
+                    {pkg.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

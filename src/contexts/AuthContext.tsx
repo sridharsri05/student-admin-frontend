@@ -1,67 +1,7 @@
-// import React, { createContext, useContext, useState, useEffect } from 'react';
-
-// const AuthContext = createContext();
-
-// export const useAuth = () => {
-//   const context = useContext(AuthContext);
-//   if (!context) {
-//     throw new Error('useAuth must be used within an AuthProvider');
-//   }
-//   return context;
-// };
-
-// export const AuthProvider = ({ children }) => {
-//   const [user, setUser] = useState(null);
-//   const [loading, setLoading] = useState(true);
-
-//   useEffect(() => {
-//     // Check if user is logged in
-//     const token = localStorage.getItem('authToken');
-//     const userData = localStorage.getItem('userData');
-
-//     if (token && userData) {
-//       try {
-//         setUser(JSON.parse(userData));
-//       } catch (error) {
-//         console.error('Error parsing user data:', error);
-//         localStorage.removeItem('authToken');
-//         localStorage.removeItem('userData');
-//       }
-//     }
-
-//     setLoading(false);
-//   }, []);
-
-//   const login = (userData, token) => {
-//     localStorage.setItem('authToken', token);
-//     localStorage.setItem('userData', JSON.stringify(userData));
-//     setUser(userData);
-//   };
-
-//   const logout = () => {
-//     localStorage.removeItem('authToken');
-//     localStorage.removeItem('userData');
-//     setUser(null);
-//   };
-
-//   const value = {
-//     user,
-//     login,
-//     logout,
-//     loading,
-//     isAuthenticated: !!user,
-//   };
-
-//   return (
-//     <AuthContext.Provider value={value}>
-//       {children}
-//     </AuthContext.Provider>
-//   );
-// };
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import axiosInstance from "@/config/axiosInstance";
-import * as jwt_decode from "jwt-decode";
+import { apiCall} from "../config/api";
+import { apiConfig } from "../config/apiConfig";
+import { jwtDecode } from "jwt-decode";
 
 interface User {
   id: string;
@@ -101,8 +41,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   function isTokenExpired(token: string | null) {
     if (!token) return true;
     try {
-      const { exp } = (jwt_decode as any).default(token) as { exp: number };
-      return Date.now() >= exp * 1000;
+      const decoded = jwtDecode(token);
+      const exp = decoded?.exp;
+      return exp ? Date.now() >= exp * 1000 : true;
     } catch {
       return true;
     }
@@ -114,15 +55,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const token = localStorage.getItem("authToken");
       const userData = localStorage.getItem("userData");
 
-      if (token && isTokenExpired(token)) {
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      if (isTokenExpired(token)) {
         try {
-          const refreshResponse = await axiosInstance.post("/auth/refresh", {}, { withCredentials: true });
-          const newToken = refreshResponse.data.token;
-          localStorage.setItem("authToken", newToken);
-          if (userData) {
-            setUser(JSON.parse(userData));
+          const refreshResponse = await apiCall(`${apiConfig.endpoints.refresh}`, {
+            method: 'GET',
+            withCredentials: true
+          });
+          
+          if (refreshResponse.accessToken) {
+            const newToken = refreshResponse.accessToken;
+            localStorage.setItem("authToken", newToken);
+            if (userData) {
+              setUser(JSON.parse(userData));
+            }
+          } else {
+            throw new Error("No access token in refresh response");
           }
         } catch (err) {
+          console.error("Token refresh failed:", err);
           localStorage.removeItem("authToken");
           localStorage.removeItem("userData");
           setUser(null);
@@ -132,7 +87,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return;
       }
 
-      if (token && userData) {
+      if (userData) {
         try {
           setUser(JSON.parse(userData));
         } catch (error) {

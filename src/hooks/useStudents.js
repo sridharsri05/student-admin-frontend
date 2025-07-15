@@ -218,6 +218,27 @@ export const useStudents = () => {
     }
   }, [updateLocalStudents, toast]);
 
+  // Get a single student by ID
+  const getStudentById = useCallback(async (id) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await apiCall(`/students/${id}`);
+      return response.student;
+    } catch (err) {
+      setError(err.message);
+      toast({
+        title: "Error fetching student",
+        description: err.message,
+        variant: "destructive",
+      });
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
   // Initialize data on mount
   useEffect(() => {
     if (!isInitialized.current) {
@@ -258,5 +279,6 @@ export const useStudents = () => {
     updateStudent,
     deleteStudent,
     clearCache,
+    getStudentById,
   };
 };

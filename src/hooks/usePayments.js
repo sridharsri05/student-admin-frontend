@@ -10,7 +10,8 @@ export const usePayments = () => {
         successfulPayments: 0,
         failedPayments: 0,
         monthlyRevenue: [],
-        statusCounts: {}
+        statusCounts: {},
+        paymentMethodDistribution: []
     });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -59,11 +60,11 @@ export const usePayments = () => {
         }
     };
 
-    const updatePaymentStatus = async (paymentId, status, notes = '') => {
+    const updatePayment = async (paymentId, paymentData) => {
         try {
-            const response = await apiCall(`/payments/${paymentId}/status`, {
-                method: 'PATCH',
-                body: JSON.stringify({ status, notes })
+            const response = await apiCall(`/payments/${paymentId}`, {
+                method: 'PUT',
+                body: JSON.stringify(paymentData)
             });
             await fetchPayments();
             await fetchAnalytics();
@@ -74,19 +75,37 @@ export const usePayments = () => {
         }
     };
 
-    const getPendingPayments = async () => {
+    const deletePayment = async (paymentId) => {
         try {
-            const response = await apiCall('/payments/pending');
-            return response.pendingPayments || [];
+            await apiCall(`/payments/${paymentId}`, {
+                method: 'DELETE'
+            });
+            await fetchPayments();
+            await fetchAnalytics();
         } catch (err) {
-            console.error('Get pending payments error:', err);
-            return [];
+            setError(err.message);
+            throw err;
         }
     };
 
+    const refetch = async (filters = {}) => {
+        setLoading(true);
+        try {
+            await Promise.all([
+                fetchPayments(filters),
+                fetchAnalytics(filters)
+            ]);
+        } catch (err) {
+            setError(err.message);
+            console.error('Refetch error:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Load payments and analytics when component mounts
     useEffect(() => {
-        fetchPayments();
-        fetchAnalytics();
+        refetch();
     }, []);
 
     return {
@@ -97,11 +116,8 @@ export const usePayments = () => {
         fetchPayments,
         fetchAnalytics,
         createPayment,
-        updatePaymentStatus,
-        getPendingPayments,
-        refetch: () => {
-            fetchPayments();
-            fetchAnalytics();
-        }
+        updatePayment,
+        deletePayment,
+        refetch
     };
 };

@@ -1,5 +1,3 @@
-
-import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,9 +21,13 @@ import {
   DollarSign,
   BookOpen
 } from "lucide-react";
+import { useBatches } from "@/hooks/useBatches";
+import EditBatchModal from "./EditBatchModal";
+import { useState } from "react";
+import BatchStudentsModal from "./BatchStudentsModal";
 
 interface Batch {
-  id: string;
+  _id: string;
   name: string;
   course: string;
   instructor: string;
@@ -34,7 +36,7 @@ interface Batch {
   currentEnrollment: number;
   startDate: string;
   endDate: string;
-  schedule: string;
+  schedule: any;
   mode: "offline" | "online" | "hybrid";
   venue: string;
   fees: number;
@@ -43,67 +45,63 @@ interface Batch {
 
 interface BatchListProps {
   searchTerm: string;
+  batches: Batch[];
+  loading: boolean;
+  error: string | null;
 }
 
-export const BatchList = ({ searchTerm }: BatchListProps) => {
-  // Mock data - in real app, this would come from an API
-  const [batches] = useState<Batch[]>([
-    {
-      id: "BATCH001",
-      name: "JEE Main 2024 Morning Batch",
-      course: "JEE Main Preparation",
-      instructor: "Dr. Rajesh Sharma",
-      instructorImage: "",
-      maxCapacity: 30,
-      currentEnrollment: 28,
-      startDate: "2024-01-15",
-      endDate: "2024-06-15",
-      schedule: "Mon, Wed, Fri - 9:00 AM to 12:00 PM",
-      mode: "offline",
-      venue: "Room 101, Main Building",
-      fees: 25000,
-      status: "active"
-    },
-    {
-      id: "BATCH002",
-      name: "NEET Evening Batch",
-      course: "NEET Preparation",
-      instructor: "Prof. Priya Gupta",
-      instructorImage: "",
-      maxCapacity: 25,
-      currentEnrollment: 22,
-      startDate: "2024-02-01",
-      endDate: "2024-07-01",
-      schedule: "Tue, Thu, Sat - 4:00 PM to 7:00 PM",
-      mode: "hybrid",
-      venue: "Room 205, Science Block",
-      fees: 30000,
-      status: "active"
-    },
-    {
-      id: "BATCH003",
-      name: "Foundation Mathematics",
-      course: "Foundation Course",
-      instructor: "Mr. Arjun Patel",
-      instructorImage: "",
-      maxCapacity: 35,
-      currentEnrollment: 15,
-      startDate: "2024-03-01",
-      endDate: "2024-08-01",
-      schedule: "Mon to Fri - 2:00 PM to 4:00 PM",
-      mode: "online",
-      venue: "Online Platform",
-      fees: 15000,
-      status: "upcoming"
-    }
-  ]);
+// Helper to stringify course value
+const getCourseName = (course: any) => {
+  return typeof course === 'object' && course !== null ? course.name : course;
+};
 
-  const filteredBatches = batches.filter(batch =>
-    batch.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    batch.course.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    batch.instructor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    batch.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+// Helper to stringify course package value
+const getCoursePackageName = (pkg: any) => {
+  return typeof pkg === 'object' && pkg !== null ? pkg.name : pkg;
+};
+
+// Helper to stringify schedule summary
+const getScheduleString = (schedule: any) => {
+  if (typeof schedule === 'string') return schedule;
+  if (schedule && typeof schedule === 'object') {
+    const enabledDays = Object.keys(schedule).filter(day => schedule[day]?.enabled);
+    return enabledDays.length ? `${enabledDays.length} day(s) / week` : 'No schedule';
+  }
+  return '';
+};
+
+export const BatchList = ({ searchTerm, batches, loading, error }: BatchListProps) => {
+  const { updateBatch, deleteBatch, fetchBatches } = useBatches();
+  const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
+  const [manageBatchId, setManageBatchId] = useState<string | null>(null);
+
+  const filteredBatches = batches.filter(batch => {
+    const courseName = getCourseName(batch.course);
+    const packageName = getCoursePackageName((batch as any).coursePackage);
+    return (
+      (batch.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (courseName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (packageName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (batch.instructor || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (batch._id || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-40">
+        <span className="text-neon-cyan animate-pulse">Loading batches...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-40 text-red-500">
+        <span>Error loading batches: {error}</span>
+      </div>
+    );
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -128,6 +126,17 @@ export const BatchList = ({ searchTerm }: BatchListProps) => {
     return (current / max) * 100;
   };
 
+  const handleDelete = async (id: string) => {
+    if (confirm("Are you sure you want to delete this batch?")) {
+      try {
+        await deleteBatch(id);
+        await fetchBatches();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
   return (
     <div className="space-y-4">
       {filteredBatches.length === 0 ? (
@@ -139,12 +148,12 @@ export const BatchList = ({ searchTerm }: BatchListProps) => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredBatches.map((batch) => (
-            <Card key={batch.id} className="glass border-white/10 hover-lift hover-glow">
+            <Card key={batch._id} className="glass border-white/10 hover-lift hover-glow">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <h3 className="font-semibold text-foreground mb-1">{batch.name}</h3>
-                    <p className="text-sm text-muted-foreground mb-2">{batch.id}</p>
+                    <p className="text-sm text-muted-foreground mb-2">{batch._id}</p>
                     <div className="flex items-center gap-2 mb-2">
                       <Badge className={getStatusColor(batch.status)}>
                         {batch.status}
@@ -161,15 +170,11 @@ export const BatchList = ({ searchTerm }: BatchListProps) => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="glass bg-background border-white/20">
-                      <DropdownMenuItem className="hover:bg-white/10">
-                        <Eye className="w-4 h-4 mr-2" />
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="hover:bg-white/10">
+                      <DropdownMenuItem className="hover:bg-white/10" onClick={() => setEditingBatch(batch)}>
                         <Edit className="w-4 h-4 mr-2" />
                         Edit Batch
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="hover:bg-white/10 text-red-400">
+                      <DropdownMenuItem className="hover:bg-white/10 text-red-400" onClick={() => handleDelete(batch._id)}>
                         <Trash2 className="w-4 h-4 mr-2" />
                         Delete Batch
                       </DropdownMenuItem>
@@ -180,8 +185,13 @@ export const BatchList = ({ searchTerm }: BatchListProps) => {
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2">
                     <BookOpen className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">{batch.course}</span>
+                    <span className="text-sm text-muted-foreground">{getCourseName(batch.course)}</span>
                   </div>
+                  { (batch as any).coursePackage && (
+                  <div className="flex items-center space-x-2">
+                    <BookOpen className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Pkg: {getCoursePackageName((batch as any).coursePackage)}</span>
+                  </div>)}
                   
                   <div className="flex items-center space-x-2">
                     <Avatar className="w-6 h-6">
@@ -195,7 +205,7 @@ export const BatchList = ({ searchTerm }: BatchListProps) => {
 
                   <div className="flex items-center space-x-2">
                     <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">{batch.schedule}</span>
+                    <span className="text-sm text-muted-foreground">{getScheduleString(batch.schedule)}</span>
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -243,17 +253,32 @@ export const BatchList = ({ searchTerm }: BatchListProps) => {
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 mt-4 pt-4 border-t border-white/10">
-                  <Button variant="outline" size="sm" className="flex-1 border-white/20 hover:bg-white/10">
+                  <Button variant="outline" size="sm" className="flex-1 border-white/20 hover:bg-white/10" onClick={()=>setManageBatchId(batch._id)}>
                     View Students
-                  </Button>
-                  <Button variant="outline" size="sm" className="flex-1 border-white/20 hover:bg-white/10">
-                    Manage
                   </Button>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
+      )}
+      {editingBatch && (
+        <EditBatchModal
+          batch={editingBatch}
+          onSave={async (payload) => {
+            try {
+              await updateBatch(editingBatch._id, payload);
+              await fetchBatches();
+              setEditingBatch(null);
+            } catch (err) {
+              console.error(err);
+            }
+          }}
+          onClose={() => setEditingBatch(null)}
+        />
+      )}
+      {manageBatchId && (
+        <BatchStudentsModal batchId={manageBatchId} open={!!manageBatchId} onClose={() => setManageBatchId(null)} />
       )}
     </div>
   );

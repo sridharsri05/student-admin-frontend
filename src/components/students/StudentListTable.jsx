@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Edit, Trash2, Eye } from "lucide-react";
+import { Edit, Trash2 } from "lucide-react";
 import { useStudents } from "@/hooks/useStudents";
 import { DialogDescription } from "@/components/ui/dialog";
 
@@ -70,9 +70,6 @@ export const StudentListTable = ({ searchTerm = "", filteredStudents = [] }) => 
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1 sm:gap-2">
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3">
-                          <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                        </Button>
                         <Button variant="outline" size="sm" className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3">
                           <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
                         </Button>

@@ -49,7 +49,18 @@ axiosInstance.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        if (error.response && error.response.status === 401 && !originalRequest._retry) {
+        // Check if config is available
+        if (!originalRequest) return Promise.reject(error);
+
+        // Prevent infinite loops
+        if (originalRequest._isRetry) {
+            return Promise.reject(error);
+        }
+
+        const status = error.response?.status;
+        const isAuthError = status === 401 || (status === 403 && (error.response.data?.error || '').toLowerCase().includes('invalid token'));
+
+        if (isAuthError && !originalRequest._retry) {
             if (isRefreshing) {
                 return new Promise(function (resolve, reject) {
                     failedQueue.push({ resolve, reject });
@@ -67,9 +78,15 @@ axiosInstance.interceptors.response.use(
             isRefreshing = true;
 
             try {
-                const refreshResponse = await axios.get(`${API_BASE_URL}/auth/refresh`, { withCredentials: true });
+                const refreshResponse = await axios.get(`${API_BASE_URL}/auth/refresh`, {
+                    withCredentials: true
+                });
 
-                const newToken = refreshResponse.data.token;
+                if (!refreshResponse.data || !refreshResponse.data.accessToken) {
+                    throw new Error('No access token in refresh response');
+                }
+
+                const newToken = refreshResponse.data.accessToken;
                 localStorage.setItem('authToken', newToken);
 
                 axiosInstance.defaults.headers.Authorization = 'Bearer ' + newToken;
@@ -81,9 +98,17 @@ axiosInstance.interceptors.response.use(
             } catch (refreshError) {
                 processQueue(refreshError, null);
 
-                // Optionally clear tokens and force logout
+                // Clear tokens and user data but don't redirect immediately
                 localStorage.removeItem('authToken');
-                window.location.href = '/login'; // Redirect to login
+                localStorage.removeItem('userData');
+
+                // Only redirect to login if we're not already on the login page
+                if (!window.location.pathname.includes('/login')) {
+                    // Use a timeout to prevent immediate redirect during in-flight requests
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 100);
+                }
 
                 return Promise.reject(refreshError);
             } finally {

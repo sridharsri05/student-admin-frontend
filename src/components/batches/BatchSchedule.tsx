@@ -1,5 +1,5 @@
-
 import { useState } from "react";
+import { useBatchSchedule } from '@/hooks/useBatchSchedule';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,47 +20,6 @@ interface ScheduleItem {
 export const BatchSchedule = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   
-  // Mock schedule data
-  const scheduleData: { [key: string]: ScheduleItem[] } = {
-    "2024-01-15": [
-      {
-        id: "SCH001",
-        batchName: "JEE Main Morning Batch",
-        course: "Physics",
-        instructor: "Dr. Rajesh Sharma",
-        time: "09:00",
-        duration: "3 hours",
-        venue: "Room 101",
-        students: 28,
-        status: "scheduled"
-      },
-      {
-        id: "SCH002",
-        batchName: "NEET Evening Batch",
-        course: "Biology",
-        instructor: "Prof. Priya Gupta",
-        time: "16:00",
-        duration: "3 hours",
-        venue: "Room 205",
-        students: 22,
-        status: "scheduled"
-      }
-    ],
-    "2024-01-16": [
-      {
-        id: "SCH003",
-        batchName: "Foundation Mathematics",
-        course: "Algebra",
-        instructor: "Mr. Arjun Patel",
-        time: "14:00",
-        duration: "2 hours",
-        venue: "Online",
-        students: 15,
-        status: "scheduled"
-      }
-    ]
-  };
-
   const getWeekDates = (date: Date) => {
     const week = [];
     const startDate = new Date(date);
@@ -97,6 +56,29 @@ export const BatchSchedule = () => {
   };
 
   const weekDates = getWeekDates(currentDate);
+  const { schedule, loading } = useBatchSchedule(
+    weekDates[0].toISOString().split('T')[0],
+    weekDates[6].toISOString().split('T')[0]
+  );
+
+  // transform schedule array to map by date
+  const scheduleData: { [key: string]: ScheduleItem[] } = {};
+  schedule.forEach((item: any) => {
+    const dateKey = weekDates.find(d => d.toLocaleDateString('en-US',{weekday:'long'}).toLowerCase()===item.day)?.toISOString().split('T')[0] || '';
+    if (!scheduleData[dateKey]) scheduleData[dateKey] = [];
+    scheduleData[dateKey].push({
+      id: item.id,
+      batchName: item.batchName,
+      course: item.course,
+      instructor: item.instructor,
+      time: item.time,
+      duration: item.duration,
+      venue: item.venue,
+      students: item.students,
+      status: item.status as any
+    });
+  });
+
   const today = new Date().toDateString();
 
   return (
@@ -138,7 +120,7 @@ export const BatchSchedule = () => {
       </Card>
 
       {/* Schedule Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 ">
         {weekDates.map((date, index) => {
           const dateStr = formatDate(date);
           const daySchedule = scheduleData[dateStr] || [];
@@ -148,7 +130,7 @@ export const BatchSchedule = () => {
           return (
             <Card 
               key={index} 
-              className={`glass border-white/10 ${isToday ? 'ring-2 ring-neon-cyan/50' : ''}`}
+              className={`glass border-white/10 ${isToday ? 'ring-2 ring-neon-cyan/50' : ''} min-w-[200px] md:min-w-0`}
             >
               <CardHeader className="pb-2">
                 <div className="text-center">
@@ -212,7 +194,7 @@ export const BatchSchedule = () => {
       </div>
 
       {/* Legend */}
-      <Card className="glass border-white/10">
+      <Card className="glass border-white/10  ">
         <CardContent className="p-4">
           <div className="flex flex-wrap gap-4 justify-center">
             <div className="flex items-center gap-2">

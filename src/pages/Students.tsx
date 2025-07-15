@@ -313,6 +313,8 @@ export const Students = () => {
                               <SelectItem value="active">Active</SelectItem>
                               <SelectItem value="pending">Pending</SelectItem>
                               <SelectItem value="inactive">Inactive</SelectItem>
+                              <SelectItem value="graduated">Graduated</SelectItem>
+                              <SelectItem value="dropped">Dropped</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -325,7 +327,8 @@ export const Students = () => {
                             </SelectTrigger>
                             <SelectContent className="glass bg-background border-white/20">
                               <SelectItem value="all">All Fee Status</SelectItem>
-                              <SelectItem value="paid">Paid</SelectItem>
+                              <SelectItem value="complete">Complete</SelectItem>
+                              <SelectItem value="partial">Partial</SelectItem>
                               <SelectItem value="pending">Pending</SelectItem>
                               <SelectItem value="overdue">Overdue</SelectItem>
                             </SelectContent>
@@ -397,6 +400,8 @@ export const Students = () => {
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="pending">Pending</SelectItem>
                         <SelectItem value="inactive">Inactive</SelectItem>
+                        <SelectItem value="graduated">Graduated</SelectItem>
+                        <SelectItem value="dropped">Dropped</SelectItem>
                       </SelectContent>
                     </Select>
                     
@@ -406,7 +411,8 @@ export const Students = () => {
                       </SelectTrigger>
                       <SelectContent className="glass bg-background border-white/20">
                         <SelectItem value="all">All Fee Status</SelectItem>
-                        <SelectItem value="paid">Paid</SelectItem>
+                        <SelectItem value="complete">Complete</SelectItem>
+                        <SelectItem value="partial">Partial</SelectItem>
                         <SelectItem value="pending">Pending</SelectItem>
                         <SelectItem value="overdue">Overdue</SelectItem>
                       </SelectContent>
@@ -481,7 +487,7 @@ export const Students = () => {
                 </div>
                 
                 {/* Student List Display */}
-                <StudentList filteredStudents={filteredStudents} viewMode={viewMode} />
+                <StudentList filteredStudents={filteredStudents} viewMode={viewMode} refreshStudents={refreshStudents} />
               </TabsContent>
             </motion.div>
           )}
@@ -494,7 +500,41 @@ export const Students = () => {
               transition={{ duration: 0.35, ease: "easeInOut" }}
             >
               <TabsContent value="register" forceMount>
-                <StudentRegistrationForm onSuccess={() => setActiveTab("list")} />
+                <StudentRegistrationForm onSuccess={(studentData) => {
+                  // First refresh the students list to include the new student
+                  refreshStudents();
+                  
+                  // If we have student data, ask if they want to add fee details now
+                  if (studentData && studentData._id) {
+                    // Show toast with success and option to add fee
+                    toast({
+                      title: "Student Registration Successful",
+                      description: (
+                        <div className="space-y-2">
+                          <p>The student has been registered successfully.</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Button size="sm" variant="outline" onClick={() => setActiveTab("list")}>
+                              View Students
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              onClick={() => {
+                                // Navigate to fee payment page with the student data
+                                window.location.href = `/payment-reports?student=${studentData._id}`;
+                              }}
+                            >
+                              Add Fee Details
+                            </Button>
+                          </div>
+                        </div>
+                      ),
+                      duration: 8000,
+                    });
+                  } else {
+                    // Default back to the list view
+                    setActiveTab("list");
+                  }
+                }} />
               </TabsContent>
             </motion.div>
           )}

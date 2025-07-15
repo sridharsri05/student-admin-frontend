@@ -35,12 +35,12 @@ import { PaymentAnalytics } from "@/components/payments/PaymentAnalytics";
 import { PaymentFilters } from "@/components/payments/PaymentFilters";
 import { EnhancedPaymentAnalytics } from "@/components/payments/EnhancedPaymentAnalytics";
 import { PaymentStats } from "@/components/payments/PaymentStats";
+import { EMIManagement } from "@/components/payments/EMIManagement";
 import { usePayments } from "@/hooks/usePayments";
 import {
   exportPaymentsToPDF,
   exportPaymentsToExcel,
 } from "@/components/payments/PaymentExportUtils";
-7;
 import { toast } from "@/hooks/use-toast";
 
 export const PaymentReports = () => {
@@ -222,7 +222,7 @@ export const PaymentReports = () => {
 
       {/* Tabs - Mobile Responsive */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="glass border-white/20 grid w-full grid-cols-4 h-auto p-1 gap-1">
+        <TabsList className="glass border-white/20 grid w-full grid-cols-5 h-auto p-1 gap-1">
           <TabsTrigger
             value="overview"
             className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-xs sm:text-sm px-2 py-2"
@@ -234,6 +234,12 @@ export const PaymentReports = () => {
             className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-xs sm:text-sm px-2 py-2"
           >
             Transactions
+          </TabsTrigger>
+          <TabsTrigger
+            value="emi"
+            className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-xs sm:text-sm px-2 py-2"
+          >
+            EMI Payments
           </TabsTrigger>
           <TabsTrigger
             value="analytics"
@@ -431,8 +437,15 @@ export const PaymentReports = () => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="emi" className="mt-6">
+          <EMIManagement />
+        </TabsContent>
+
         <TabsContent value="analytics" className="mt-6">
-          <EnhancedPaymentAnalytics />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <PaymentAnalytics data={analytics} />
+            <EnhancedPaymentAnalytics data={analytics} />
+          </div>
         </TabsContent>
 
         <TabsContent value="filters" className="mt-6">
